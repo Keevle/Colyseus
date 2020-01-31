@@ -113,7 +113,7 @@ AddCondition(15,0,"Is field","Schema","Is field {0}"," Only available during \"O
 
 // example
 AddStringParam("ServerUrl", "Enter the url of the server to connect to","localhost:1280");
-AddAction(0, af_none, "Connect", "Client", "Open connection to {0}", "Connect to a server url", "Connect");
+AddAction(0, af_none, "Connect", "Client", "Open connection to {0}", "Connect to a server url", "SetEndpoint");
 
 AddAction(1, af_none, "Disconnect", "Client", "Disconnect", "Close connection with server", "Disconnect");
 
@@ -121,11 +121,23 @@ AddStringParam("Room name", "Room name");
 AddStringParam("Options", "The \"requestJoin\" options, in JSON format.");
 AddAction(2, af_none, "Join Room", "Room", "Join room {0} with options {1}.", "Join a room by name", "JoinRoom");
 
+AddStringParam("Room name", "Room name");
+AddStringParam("Options", "The \"requestJoin\" options, in JSON format.");
+AddAction(3, af_none, "JoinCrate", "Room", "Join or create room {0} with options {1}.", "Jopin or Create a room", "JoinOrCreateRoom");
+
+AddStringParam("Room name", "Room name");
+AddStringParam("Options", "The \"requestJoin\" options, in JSON format.");
+AddAction(3, af_none, "CreateRoom", "Room", "Create room {0} with options {1}.", "Create a room", "CreateRoom");
+
+AddStringParam("roomId", "Room name");
+AddStringParam("sessionid", "The \"requestJoin\" options, in JSON format.");
+AddAction(3, af_none, "ReconnectRoom", "Room","Reconnect to a room by ID", "ReconnectRoom");
+
 AddAnyTypeParam("Type", "Type of the message.");
 AddAnyTypeParam("Message", "JSON representation of the message. Messages arrive on server-side at \"onMessage\".");
-AddAction(3, af_none, "Send message", "Room", "Send {0} with {1}", "Send message to a room", "RoomSend");
+AddAction(4, af_none, "Send message", "Room", "Send {0} with {1}", "Send message to a room", "RoomSend");
 
-AddAction(4, af_none, "Leave room", "Room", "Leave from the room", "Disconnect client from the room.", "RoomLeave");
+AddAction(5, af_none, "Leave room", "Room", "Leave from the room", "Disconnect client from the room.", "RoomLeave");
 
 ////////////////////////////////////////
 // Expressions
