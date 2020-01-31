@@ -1,9 +1,9 @@
-﻿function GetPluginSettings()
+function GetPluginSettings()
 {
 	return {
 		"name":			"Colyseus",				// as appears in 'insert object' dialog, can be changed as long as "id" stays the same
 		"id":			"Colyseus",				// this is used to identify this plugin and is saved to the project; never change it
-		"version":      "0.10.0",					// (float in x.y format) Plugin version - C2 shows compatibility warnings based on this
+		"version":      "0.12.0",					// (float in x.y format) Plugin version - C2 shows compatibility warnings based on this
 		"description":	"Allows you to develop develop multiplayer games using Colyseus.",
 		"author":		"Endel Dreyer",
 		"help url":		" ",
@@ -113,7 +113,7 @@ AddCondition(15,0,"Is field","Schema","Is field {0}"," Only available during \"O
 
 // example
 AddStringParam("ServerUrl", "Enter the url of the server to connect to","localhost:1280");
-AddAction(0, af_none, "Connect", "Client", "Open connection to {0}", "Connect to a server url", "SetEndpoint");
+AddAction(0, af_none, "SetEndpoint", "Client", "Open connection to {0}", "Connect to a server url", "SetEndpoint");
 
 AddAction(1, af_none, "Disconnect", "Client", "Disconnect", "Close connection with server", "Disconnect");
 
@@ -127,17 +127,17 @@ AddAction(3, af_none, "JoinCrate", "Room", "Join or create room {0} with options
 
 AddStringParam("Room name", "Room name");
 AddStringParam("Options", "The \"requestJoin\" options, in JSON format.");
-AddAction(3, af_none, "CreateRoom", "Room", "Create room {0} with options {1}.", "Create a room", "CreateRoom");
+AddAction(5, af_none, "CreateRoom", "Room", "Create room {0} with options {1}.", "Create a room", "CreateRoom");
 
 AddStringParam("roomId", "Room name");
 AddStringParam("sessionid", "The \"requestJoin\" options, in JSON format.");
-AddAction(3, af_none, "ReconnectRoom", "Room","Reconnect to a room by ID", "ReconnectRoom");
+AddAction(6, af_none, "ReconnectRoom", "Room","Reconnect to a room by ID", "ReconnectRoom");
 
 AddAnyTypeParam("Type", "Type of the message.");
 AddAnyTypeParam("Message", "JSON representation of the message. Messages arrive on server-side at \"onMessage\".");
-AddAction(4, af_none, "Send message", "Room", "Send {0} with {1}", "Send message to a room", "RoomSend");
+AddAction(7, af_none, "Send message", "Room", "Send {0} with {1}", "Send message to a room", "RoomSend");
 
-AddAction(5, af_none, "Leave room", "Room", "Leave from the room", "Disconnect client from the room.", "RoomLeave");
+AddAction(8, af_none, "Leave room", "Room", "Leave from the room", "Disconnect client from the room.", "RoomLeave");
 
 ////////////////////////////////////////
 // Expressions
@@ -173,7 +173,11 @@ AddExpression(7,ef_return_any,"CurrentIndex,","General","CurrentIndex","Get inde
 AddExpression(8,ef_return_any,"CurrentValue","General","CurrentValue","Get value from current item")
 
 AddStringParam("Variable", "A dot separated path to the variable. e.g. \"messages.0\" ");
-AddExpression(9,ef_return_string,"CurrentValueAt","General","CurrentValueAt","Get nested value from current item")
+AddExpression(9,ef_return_any,"CurrentValueAt","General","CurrentValueAt","Get nested value from current item")
+
+AddStringParam("Variable", "Declare a JSON value.");
+AddExpression(10,ef_return_string,"JSON","General","JSON","Declare a JSON value.")
+
 
 
 ////////////////////////////////////////
