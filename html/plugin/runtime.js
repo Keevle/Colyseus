@@ -10,7 +10,89 @@ cr.plugins_.Colyseus = function(runtime)
 {
   this.runtime = runtime;
 };
-
+_MatchMake = function(methodName, roomName, options)
+    {
+        var self = this;
+        var options = JSON.parse(options || "{}");
+    
+        this.client[methodName](roomName, options).then(function(room) {
+          self.room = room;
+    
+          self.sessionId = self.room.sessionId;
+          self.Trigger(C2.Plugins.Colyseus.Cnds.OnJoinRoom);
+    
+          room.onError(function (err) {
+            self.Trigger(C2.Plugins.Colyseus.Cnds.OnRoomError);
+          });
+    
+          room.onStateChange.once(function() {
+            function registerCallbacksOnStructure (instance, path) {
+              instance.onChange = onChange.bind(undefined, [...path]);
+              instance.triggerAll();
+    
+              var schema = instance._schema;
+              for (var field in schema) {
+                if (schema[field].map || Array.isArray(schema[field])) {
+                  instance[field].onAdd = onAdd.bind(undefined, [...path, field]);
+                  instance[field].onChange = onItemChange.bind(undefined, [...path, field]);
+                  instance[field].onRemove = onRemove.bind(undefined, [...path, field]);
+                  instance[field].triggerAll();
+                }
+              }
+            }
+    
+            function onAdd (path, instance, index) {
+              registerCallbacksOnStructure(instance, [...path, index]);
+    
+              self.lastPath = path.join(".");
+              self.lastIndex = index;
+              self.lastValue = instance;
+              self.Trigger(C2.Plugins.Colyseus.Cnds.OnSchemaAdd);
+            }
+    
+            function onItemChange (path, instance, index) {
+              self.lastPath = path.join(".");
+              self.lastIndex = index;
+              self.lastValue = instance;
+              self.Trigger(C2.Plugins.Colyseus.Cnds.OnSchemaChange);
+            }
+    
+            function onChange (path, changes) {
+              self.lastIndex = undefined;
+              self.lastPath = path.join(".");
+              for (var i=0; i<changes.length; i++) {
+                self.lastField = changes[i].field;
+                self.lastValue = changes[i].value;
+                self.lastPreviousValue = changes[i].previousValue;
+                self.Trigger(C2.Plugins.Colyseus.Cnds.OnSchemaFieldChange);
+              }
+            }
+    
+            function onRemove (path, instance, index) {
+              self.lastPath = path.join(".");
+              self.lastIndex = index;
+              self.lastValue = instance;
+              self.Trigger(C2.Plugins.Colyseus.Cnds.OnSchemaRemove);
+            }
+    
+            registerCallbacksOnStructure(self.room.state, []);
+          });
+    
+          room.onStateChange(function (state) {
+            self.Trigger(C2.Plugins.Colyseus.Cnds.OnStateChange);
+          });
+    
+          room.onMessage(function (message) {
+            self.lastValue = message;
+            self.lastType = message.type;
+            self.Trigger(C2.Plugins.Colyseus.Cnds.OnMessage);
+          });
+    
+        }).catch(function(err) {
+            self.Trigger(C2.Plugins.Colyseus.Cnds.OnRoomError);
+        });
+    }
+  };
 (function ()
  {
    var Colyseus = window['Colyseus'];
@@ -54,7 +136,7 @@ cr.plugins_.Colyseus = function(runtime)
   //  {
   //    // leave the room
   //    if (this.room) { this.room.leave(); }
-   
+
   //    // close the connection with server.
   //    if (client) { client.close(); }
   //  };
@@ -92,6 +174,7 @@ cr.plugins_.Colyseus = function(runtime)
    Cnds.prototype.OnLeaveRoom = function () { return true; };
    Cnds.prototype.OnRoomError = function () { return true; };
    Cnds.prototype.OnStateChange = function () { return true; };
+   Cnds.prototype.OnGetAvailableRooms=function() { return true; }
    Cnds.prototype.OnMessage = function (type) { return this.lastType === type; };
 
 
@@ -99,7 +182,7 @@ cr.plugins_.Colyseus = function(runtime)
    Cnds.prototype.OnSchemaAdd = function (path) { return checkPath(this.lastPath, path); },
    Cnds.prototype.OnSchemaChange = function (path) {
      console.log("OnSchemaChange:", this.lastPath, path);
-     return checkPath(this.lastPath, path); 
+     return checkPath(this.lastPath, path);
    },
    Cnds.prototype.OnSchemaFieldChange = function (path) { return checkPath(this.lastPath, path); },
    Cnds.prototype.OnSchemaRemove = function (path) { return checkPath(this.lastPath, path); },
@@ -151,109 +234,113 @@ cr.plugins_.Colyseus = function(runtime)
    // Actions
    function Acts() {};
 
-   Acts.prototype.Connect = function (endpoint)
+   Acts.prototype.SetEndpoint = function (endpoint)
    {
-     var self = this;
-
      this.client = new Colyseus.Client(endpoint || this.endpoint);
-     this.client.onError.add(function() { self.runtime.trigger(pluginProto.cnds.OnClientError, self); });
-     this.client.onOpen.add(function() { self.runtime.trigger(pluginProto.cnds.OnOpen, self); });
-     this.client.onClose.add(function() { self.runtime.trigger(pluginProto.cnds.OnClose, self); });
-   };
-
-   Acts.prototype.Disconnect = function ()
-   {
-     if (this.client) {
-       this.client.close();
-     }
    };
 
    Acts.prototype.JoinRoom = function (roomName, options)
    {
+     this._MatchMake("join", roomName, options);
+   };
+
+   Acts.prototype.JoinOrCreateRoom = function (roomName, options)
+   {
+     this._MatchMake("joinOrCreate", roomName, options);
+   };
+
+   Acts.prototype.CreateRoom = function (roomName, options)
+   {
+     this._MatchMake("create", roomName, options);
+   };
+
+   Acts.prototype.JoinRoomById = function (roomId, options)
+   {
+     this._MatchMake("joinById", roomId, options);
+   };
+
+   Acts.prototype.ReconnectRoom = function (roomId, sessionId)
+   {
+     this._MatchMake("reconnect", roomId, sessionid);
+   };
+
+   Acts.prototype._MatchMake = function (methodName, roomName, options) {
      var self = this;
      var options = JSON.parse(options || "{}");
 
-     this.room = this.client.join(roomName, options);
-     this.listeners = {};
+     this.client[methodName](roomName, options).then(function(room) {
+       self.room = room;
 
-     this.room.onError.add(function () {
-       self.runtime.trigger(pluginProto.cnds.OnRoomError, self);
-     });
-
-     this.room.onJoin.add(function () {
        self.sessionId = self.room.sessionId;
        self.runtime.trigger(pluginProto.cnds.OnJoinRoom, self);
-     });
 
-     this.room.onStateChange.addOnce(function() {
-       function registerCallbacksOnStructure(instance, path) {
-         instance.onChange = onChange.bind(undefined, [...path]);
-         instance.triggerAll();
+       room.onStateChange.once(function() {
+         function registerCallbacksOnStructure(instance, path) {
+           instance.onChange = onChange.bind(undefined, [...path]);
+           instance.triggerAll();
 
-         var schema = instance._schema;
-         for (var field in schema) {
-           if (schema[field].map || Array.isArray(schema[field])) {
-             instance[field].onAdd = onAdd.bind(undefined, [...path, field]);
-             instance[field].onChange = onItemChange.bind(undefined, [...path, field]);
-             instance[field].onRemove = onRemove.bind(undefined, [...path, field]);
-             instance[field].triggerAll();
+           var schema = instance._schema;
+           for (var field in schema) {
+             if (schema[field].map || Array.isArray(schema[field])) {
+               instance[field].onAdd = onAdd.bind(undefined, [...path, field]);
+               instance[field].onChange = onItemChange.bind(undefined, [...path, field]);
+               instance[field].onRemove = onRemove.bind(undefined, [...path, field]);
+               instance[field].triggerAll();
+             }
            }
          }
-       }
 
-       function onAdd(path, instance, index) {
-         registerCallbacksOnStructure(instance, [...path, index]);
+         function onAdd(path, instance, index) {
+           registerCallbacksOnStructure(instance, [...path, index]);
 
-         self.lastPath = path.join(".");
-         self.lastIndex = index;
-         self.lastValue = instance;
-         self.runtime.trigger(pluginProto.cnds.OnSchemaAdd, self);
-       }
-
-       function onItemChange(path, instance, index) {
-         self.lastPath = path.join(".");
-         self.lastIndex = index;
-         self.lastValue = instance;
-         self.runtime.trigger(pluginProto.cnds.OnSchemaChange, self);
-       }
-
-       function onChange(path, changes) {
-         self.lastIndex = undefined;
-         self.lastPath = path.join(".");
-         for (var i = 0; i < changes.length; i++) {
-           self.lastField = changes[i].field;
-           self.lastValue = changes[i].value;
-           self.lastPreviousValue = changes[i].previousValue;
-           self.runtime.trigger(pluginProto.cnds.OnSchemaFieldChange, self);
+           self.lastPath = path.join(".");
+           self.lastIndex = index;
+           self.lastValue = instance;
+           self.runtime.trigger(pluginProto.cnds.OnSchemaAdd, self);
          }
-       }
 
-       function onRemove(path, instance, index) {
-         self.lastPath = path.join(".");
-         self.lastIndex = index;
-         self.lastValue = instance;
-         self.runtime.trigger(pluginProto.cnds.OnSchemaRemove, self);
-       }
+         function onItemChange(path, instance, index) {
+           self.lastPath = path.join(".");
+           self.lastIndex = index;
+           self.lastValue = instance;
+           self.runtime.trigger(pluginProto.cnds.OnSchemaChange, self);
+         }
 
-       registerCallbacksOnStructure(self.room.state, []);
+         function onChange(path, changes) {
+           self.lastIndex = undefined;
+           self.lastPath = path.join(".");
+           for (var i = 0; i < changes.length; i++) {
+             self.lastField = changes[i].field;
+             self.lastValue = changes[i].value;
+             self.lastPreviousValue = changes[i].previousValue;
+             self.runtime.trigger(pluginProto.cnds.OnSchemaFieldChange, self);
+           }
+         }
+
+         function onRemove(path, instance, index) {
+           self.lastPath = path.join(".");
+           self.lastIndex = index;
+           self.lastValue = instance;
+           self.runtime.trigger(pluginProto.cnds.OnSchemaRemove, self);
+         }
+
+         registerCallbacksOnStructure(self.room.state, []);
+       });
+
+       room.onStateChange(function (state) {
+         self.runtime.trigger(pluginProto.cnds.OnStateChange, self);
+       });
+
+       room.onMessage(function (message) {
+         self.lastValue = message;
+         self.lastType = message.type;
+         self.runtime.trigger(pluginProto.cnds.OnMessage, self);
+       });
+
+     }).catch(function(e) {
+       self.runtime.trigger(pluginProto.cnds.OnRoomError, self);
      });
-
-     this.room.onStateChange.add(function (state) {
-       self.runtime.trigger(pluginProto.cnds.OnStateChange, self);
-     });
-
-     this.room.onMessage.add(function (message) {
-       self.lastValue = message;
-       self.lastType = message.type;
-       self.runtime.trigger(pluginProto.cnds.OnMessage, self);
-     });
-
-     //  this.room.listen(function(change) {
-     //    self.lastChange = change;
-     //    self.lastValue = change.value;
-     //    self.runtime.trigger(pluginProto.cnds.OnRoomListen, self);
-     //  });
-   };
+   }
 
    Acts.prototype.RoomSend = function (type, data)
    {
@@ -275,6 +362,30 @@ cr.plugins_.Colyseus = function(runtime)
        this.room.leave()
      }
    }
+  Acts.prototype.GetAvailableRooms=function()
+      {
+        var self = this;
+        this.client.getAvailableRooms(roomName).then(rooms => {
+          self.lastValue = JSON.stringify(rooms);
+          if (self.debug)
+          {
+            console.info("Colyseus Rooms: ");
+            rooms.forEach((room) => {
+              console.info(room.roomId);
+              console.info(room.clients);
+              console.info(room.maxClients);
+              console.info(room.metadata);
+            });
+          }
+          self.Trigger(C2.Plugins.Colyseus.Cnds.OnGetAvailableRooms);
+        }).catch(function(err) {
+          if (self.debug)
+          {
+            console.error("Colyseus GetAvailableRooms error: "+err);
+          }
+          self.Trigger(C2.Plugins.Colyseus.Cnds.OnRoomError);
+        });
+      }
 
    pluginProto.acts = new Acts();
 
